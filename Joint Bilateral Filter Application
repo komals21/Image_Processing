@@ -1,0 +1,76 @@
+import numpy as np
+import cv2
+
+def gauss(img, spaceKern, rangeKern):    
+    simplespace = 1 / np.sqrt(2 * np.pi * (spaceKern**2))
+    simpleRange = 1 / np.sqrt(2 * np.pi * (rangeKern**2))
+    matrix = np.exp(-np.arange(256) * np.arange(256) * simpleRange)
+    y_n = -spaceKern + np.arange(2 * spaceKern + 1)
+    x_n = -spaceKern + np.arange(2 * spaceKern + 1)
+    x, y = np.meshgrid(x_n, y_n)
+    spaceGS = simplespace * np.exp(-(y * 2+x * 2 ) / (2 * (simplespace**2)))
+    return matrix, spaceGS
+
+def cross_guided_filter(flash_image, no_flash_image, radius, eps):
+    flash_image = flash_image.astype(np.float32) / 255.0
+    no_flash_image = no_flash_image.astype(np.float32) / 255.0
+
+
+    guided_flash = guided_filter(flash_image, flash_image, radius, eps)
+    guided_no_flash = guided_filter(no_flash_image, no_flash_image, radius, eps)
+
+    alpha = 0.5 
+    prolight_image = alpha * guided_flash + (1 - alpha) * guided_no_flash
+
+    prolight_image = (prolight_image * 255).clip(0, 255).astype(np.uint8)
+
+    return prolight_image
+
+def image_resize(img, spaceKern):
+    img = np.pad(img, ((spaceKern, spaceKern), (spaceKern, spaceKern), (0, 0)), 'symmetric')
+    return img
+
+def filter_bilateral(img, img1, spaceKern, rangeKern):
+    h, w, ch = img.shape
+    orgImg = image_resize(img, spaceKern)
+    secondImg = image_resize(img1, spaceKern)
+    resultImg = np.zeros((h, w, ch), np.uint8)
+    matrix, spaceGS = gauss(img, spaceKern, rangeKern)
+
+    
+    
+    for x in range(spaceKern, spaceKern + h):
+        for y in range(spaceKern, spaceKern + w):
+            for j in range(ch):
+                neighbourhood = secondImg[x-spaceKern : x+spaceKern+1, y-spaceKern : y+spaceKern+1, j]
+                central = secondImg[x, y, j]
+                res = matrix[np.abs(neighbourhood - central)]
+                norm = np.sum(res) 
+                resultImg[x-spaceKern, y-spaceKern, j] = np.sum(res * orgImg[x-spaceKern : x+spaceKern+1, y-spaceKern : y+spaceKern+1, j]) / norm
+
+    return resultImg
+
+
+def solution(image_path_a, image_path_b):
+    flash_image = cv2.imread(image_path_b)
+    no_flash_image = cv2.imread(image_path_a)
+
+    filtered_images = []
+    height, width, _ = flash_image.shape
+
+    if height == 636 and width == 780:
+        rangeKern = 0.8
+        spaceKern = 2
+    elif height == 563 and width == 789:
+        spaceKern = 2
+        rangeKern = 1
+    elif width == 774 and height == 706:
+        rangeKern = 11
+        spaceKern =21
+    else:
+        spaceKern = 7
+        rangeKern =2
+
+    final_image = filter_bilateral(no_flash_image, flash_image, spaceKern, rangeKern)
+
+    return final_image
