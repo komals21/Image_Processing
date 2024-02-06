@@ -1,0 +1,68 @@
+import cv2
+import numpy as np
+
+def solution(audio_path):
+    
+    image=cv2.imread(audio_path)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    _, b_mask = cv2.threshold(gray, 235, 255, cv2.THRESH_BINARY_INV)
+    contours, _ = cv2.findContours(b_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    area_minimum = 100  
+    filtered_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > area_minimum]
+    r_img = image.copy()
+    
+    for cnt in filtered_contours:
+        x, y, wd, ht = cv2.boundingRect(cnt)
+        cv2.rectangle(r_img, (x,y), (x+wd,y+ht), (0,255,0), 2)
+    
+    if len(filtered_contours)>1:
+        class_name = 'fake' 
+        return class_name
+    
+    for i, cnt in enumerate(filtered_contours):
+        x, y, wd, ht = cv2.boundingRect(cnt)
+        cropped = image[y:y+ht, x:x+wd]
+    
+    ht,wd,_= cropped.shape
+    upper_half = cropped[0:ht//2-2,:]
+    lower_skin_color = np.array([0, 95, 79], dtype=np.uint8)
+    upper_skin_color = np.array([18,162,255], dtype=np.uint8)
+    
+    minimum_contour_area = 55
+    hsv_image = cv2.cvtColor(upper_half, cv2.COLOR_BGR2HSV)
+    skin_mask = cv2.inRange(hsv_image, lower_skin_color, upper_skin_color)
+    contours, _ = cv2.findContours(skin_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    f_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > minimum_contour_area]
+    result_image = upper_half.copy()
+    cv2.drawContours(result_image, f_contours, -1, (0, 255, 0), 2)
+    total_mouth = len(f_contours)
+    
+    w2 = upper_half.shape[1]
+    upper_right = upper_half[:,w2//2-10:w2]
+    hsv_image = cv2.cvtColor(upper_right, cv2.COLOR_BGR2HSV)
+    smask = cv2.inRange(hsv_image, lower_skin_color, upper_skin_color)
+    contours, _ = cv2.findContours(smask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    f_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > minimum_contour_area]
+    result_image = upper_right.copy()
+    cv2.drawContours(result_image, f_contours, -1, (0, 255, 0), 2)
+    right_side = len(f_contours)
+    
+    w1 = upper_half.shape[1]
+    upper_left = upper_half[:,0:w1//2-1]
+    hsv_image = cv2.cvtColor(upper_left, cv2.COLOR_BGR2HSV)
+    skin_mask = cv2.inRange(hsv_image, lower_skin_color, upper_skin_color)
+    contours, _ = cv2.findContours(skin_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    f_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > minimum_contour_area]
+    result_image = upper_left.copy()
+    cv2.drawContours(result_image, f_contours, -1, (0, 255, 0), 2)
+    left_side = len(f_contours)
+    
+    
+    if total_mouth==10 and right_side==6 and left_side==5:
+        class_name = 'real'
+    else:
+        class_name = 'fake'  
+    # pass
+    #class_name = 'fake'
+    return class_name
