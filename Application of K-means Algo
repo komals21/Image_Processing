@@ -1,0 +1,60 @@
+import cv2
+import numpy as np
+
+# Usage
+def solution(image_path):
+    image= cv2.imread(image_path)
+    ######################################################################
+    ######################################################################
+    '''
+    The pixel values of output should be 0 and 255 and not 0 and 1
+    '''
+    #####  WRITE YOUR CODE BELOW THIS LINE ###############################
+    image= cv2.imread(image_path)
+    img_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    #g_img = cv2.cvtColor(img_hsv, cv2.COLOR_BGR2GRAY)
+    
+    pxls = img_hsv.reshape((-1, 3))
+    k = 4  
+    max_iters = 100
+    centers = pxls[np.random.choice(pxls.shape[0], k, replace=False)]
+    for _ in range(max_iters):
+        dists = np.linalg.norm(pxls[:, np.newaxis, :] - centers, axis=2)
+        labels = np.argmin(dists, axis=1)
+        new_centers = np.array([pxls[labels == i].mean(axis=0) for i in range(k)])
+        if np.all(new_centers == centers):
+            break
+
+        centers = new_centers
+    seg_pxls = centers[labels]
+    seg_img = seg_pxls.reshape(img_hsv.shape)
+    
+    lyellow = np.array([0, 100, 100])  
+    uyellow = np.array([30, 255, 255])  
+    yellow_mask = cv2.inRange(seg_img, lyellow, uyellow)
+    yellow_seg_img = cv2.bitwise_and(seg_img, seg_img, mask=yellow_mask)
+    
+    _, img_bin = cv2.threshold(yellow_mask,128,255,cv2.THRESH_BINARY)
+    kernel = np.ones((5, 5), np.uint8)
+    emask = cv2.erode(yellow_mask, kernel, iterations=1)
+    dmask = cv2.dilate(emask, kernel, iterations=1)
+    yellow_seg_img = cv2.bitwise_and(seg_img,seg_img, mask=dmask)
+   
+    contours, _ = cv2.findContours(img_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    minarea = 300
+    white_rs_count=0
+    white_rs_count = sum(cv2.contourArea(contour) > minarea for contour in contours)
+    ht,wd,_=image.shape
+    fmask = np.zeros((ht,wd,3),dtype = np.uint8)
+    if(white_rs_count)>1:
+        result = fmask
+    
+    else:
+        largest = max(contours, key=cv2.contourArea)
+        
+        cv2.drawContours(fmask, [largest], 0, (255), thickness=cv2.FILLED)
+        result = fmask
+      
+    image = result
+    ######################################################################  
+    return image
